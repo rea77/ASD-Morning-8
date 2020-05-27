@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.logging.Logger;
 
@@ -33,6 +34,9 @@ import java.util.logging.Logger;
  * This class takes care of rendering note related code
  */
 public class NoteView {
+        Integer SORT_BY_DATE = 0;
+        Integer SORT_BY_TITLE = 1;
+
         List <Note> notes;
 
         private VBox allNotesBox = new VBox();
@@ -105,8 +109,18 @@ public class NoteView {
                         }
                 });
 
+                MenuItem sortByTitle = new MenuItem("by title...");
+                MenuItem sortByDate = new MenuItem("by date...");
+                MenuButton sortButton = new MenuButton(
+                        "Sort",
+                        null,
+                        sortByTitle, sortByDate
+                );
 
-                HBox firstRow = new HBox(20, welcomeLabel, addNewNoteButton, importButton, dateFilter, tagFilter);
+                sortByTitle.setOnAction((e) -> this.sortNotes(this.SORT_BY_TITLE));
+                sortByDate.setOnAction((e) -> this.sortNotes(this.SORT_BY_DATE));
+
+                HBox firstRow = new HBox(20, welcomeLabel, addNewNoteButton, importButton, dateFilter, tagFilter, sortButton);
                 firstRow.setStyle("-fx-background-color: #9792BC");
                 firstRow.setAlignment(Pos.CENTER_LEFT);
                 firstRow.setPadding(new Insets(15, 30, 15, 20));
@@ -172,14 +186,25 @@ public class NoteView {
                         Text titleText = new Text(note.title);
                         titleText.setFont(Font.font("Arial", FontWeight.BOLD, 16));
 
+
                         // Create drop down with options
+                        MenuItem pinNoteButton;
+                        if(note.title.charAt(0) == '*')
+                        {
+                           pinNoteButton = new MenuItem("Unpin");
+                        }
+                        else
+                        {
+                           pinNoteButton = new MenuItem("Pin");
+                        }
                         MenuItem editButton = new MenuItem("Edit");
                         MenuItem deleteButton = new MenuItem("Delete");
                         MenuItem exportButton = new MenuItem("Export");
+                        MenuItem shareButton = new MenuItem("Share");
                         MenuButton menuButton = new MenuButton(
                                 "...",
-                                null,
-                                editButton, deleteButton, exportButton
+                                null, pinNoteButton,
+                                editButton, deleteButton, exportButton, shareButton
                         );
 
                         // Anchor pane is used to make title appear on the left side and drop down on the right
@@ -211,6 +236,7 @@ public class NoteView {
                         noteBox.setSpacing(10);
 
                         // Register button actions
+                        pinNoteButton.setOnAction((e) -> this.pinNoteToTop(note));
                         editButton.setOnAction((e) -> this.showEditWindow(note, titleText, contentText));
                         deleteButton.setOnAction((e) -> this.deleteNote(note, noteBox));
                         exportButton.setOnAction((e) -> {
@@ -228,12 +254,63 @@ public class NoteView {
                                         this.exportFile(note, file);
                                 }
                         });
+                        shareButton.setOnAction((e) -> this.share(note));
 
                         noteBox.setId("note-box");
 
                         // add created note to the allNotesBox
                         this.allNotesBox.getChildren().addAll(noteBox, new Separator());
                 });
+        }
+
+        private void share(Note note) {
+                TextInputDialog dialog = new TextInputDialog();
+
+                dialog.setTitle("Share");
+                dialog.setHeaderText("Enter email address to which note should be shared.");
+
+                Optional<String> result = dialog.showAndWait();
+                String entered = null;
+
+                if (result.isPresent()) {
+                        entered = result.get();
+                }
+
+                if (entered == null) {
+                        return;
+                }
+
+                NoteShare noteShare = NoteShare.getInstance();
+                noteShare.shareByEmail(entered, note);
+        }
+
+        private void pinNoteToTop(Note note) {
+                if(note.title.charAt(0) == '*')
+                {
+                    note.title = note.title.substring(1,note.title.length() - 1);
+                    this.notes.remove(note);
+                    this.notes.add(this.notes.size(),note);
+                }
+                else
+                {
+                    note.title = "*" + note.title + "*";
+                    this.notes.remove(note);
+                    this.notes.add(0,note);
+                }
+                this.updateNote();
+        }
+
+        private void sortNotes(Integer sortOption) {
+                if (sortOption == SORT_BY_TITLE) {
+                        this.notes.sort(Note.getTitleComperator());
+
+                        this.drawNotes();
+                } else if (sortOption == SORT_BY_DATE
+                ) {
+                        this.notes = this.readNotesFromDisk();
+                        this.drawNotes();
+                }
+
         }
 
         /**
